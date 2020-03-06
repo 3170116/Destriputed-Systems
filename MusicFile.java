@@ -7,6 +7,17 @@ public class MusicFile {
 	String genre;
 	byte[] musicFileExtract;
 	
+	
+	
+	/**Music file default constructor*/
+	public MusicFile(String trackName, String artistName, String albumInfo, String genre, byte[] musicFileExtract) {
+		this.trackName = trackName;
+		this.artistName = artistName;
+		this.albumInfo = albumInfo;
+		this.genre = genre;
+		this.musicFileExtract = musicFileExtract;
+	}
+	
 	/**Returns track name*/
 	public String getTrackName() {
 		return trackName;
