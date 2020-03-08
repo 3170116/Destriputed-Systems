@@ -1,19 +1,18 @@
+class ArtistName {
 
-public class ArtistName {
+    private String artistName;
 
-		String artistName;
+    /**Default Constructor*/
+    public ArtistName(String artistName) {
+            super();
+            this.artistName = artistName;
+    }
 
-		/**Default Constructor*/
-		public ArtistName(String artistName) {
-			super();
-			this.artistName = artistName;
-		}
+    public String getArtistName() {
+            return artistName;
+    }
 
-		public String getArtistName() {
-			return artistName;
-		}
-
-		public void setArtistName(String artistName) {
-			this.artistName = artistName;
-		}
+    public void setArtistName(String artistName) {
+            this.artistName = artistName;
+    }
 }

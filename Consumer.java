@@ -1,7 +1,9 @@
+class Consumer {
 
-public class Consumer {
+    public Consumer() {
+    }
 
-	public void register(Broker broker, ArtistName artname) {}
-	public void disconnect(Broker broker, ArtistName artname) {}
-	public void playData (ArtistName artname, Value value) {}
+    public void register(Broker broker, ArtistName artname) {}
+    public void disconnect(Broker broker, ArtistName artname) {}
+    public void playData (ArtistName artname, Value value) {}
 }
