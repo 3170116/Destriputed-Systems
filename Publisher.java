@@ -1,57 +1,111 @@
-import java.io.IOException;
+import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketException;
+import java.net.UnknownHostException;
+import java.util.LinkedList;
+import java.util.List;
 
-class Publisher implements Comparable<Publisher> {
+class Publisher {
+
+    private class BrokerHandler implements Runnable {
+
+        private Socket socket;
+        private ObjectInputStream in;
+        private ObjectOutputStream out;
+
+        public BrokerHandler(Socket socket, ObjectInputStream in, ObjectOutputStream out) {
+            this.socket = socket;
+            this.in = in;
+            this.out = out;
+        }
+
+        @Override
+        public void run() {
+            while (true) {
+                try {
+                    System.out.println((String) in.readObject());
+                    out.writeObject(new String("Hello Broker from Publisher"));
+                } catch (UnknownHostException unknownHost) {
+                    System.err.println("You are trying to connect to an unknown host!");
+                } catch (SocketException e) {
+                    try {
+                        in.close();
+                        out.close();
+                        socket.close();
+                        break;
+                    } catch (IOException ex) {
+                        ex.printStackTrace();
+                    }
+                } catch (EOFException e) {
+                    break;
+                } catch (IOException ioException) {
+                    ioException.printStackTrace();
+                } catch (ClassNotFoundException e) {
+                    e.printStackTrace();
+                }
+            }
+            try {
+                this.finalize();
+            } catch (Throwable throwable) {
+                throwable.printStackTrace();
+            }
+            disconnect(this);
+        }
+    }
 
     private String ipAddress;
     private int port;
 
-    private ServerSocket providerSocket;
-    private Socket connection = null;
+    private List<BrokerHandler> brokersList;
+    private ServerSocket brokersSocket;
+    private Socket brokersConnection = null;
 
     public Publisher() {
         this.ipAddress = "127.0.0.1";
         this.port = 4321;
 
         try {
-            providerSocket = new ServerSocket(this.port, 10);
+            brokersSocket = new ServerSocket(this.port);
         } catch (IOException ioException) {
             ioException.printStackTrace();
         }
+
+        brokersList = new LinkedList<>();
     }
 
-    public void accept() {
+    public void listen() {
         while (true) {
             try {
-                connection = providerSocket.accept();
-                System.out.println("Broker " + connection + "connected");
+                brokersConnection = brokersSocket.accept();
+
+                InputStream inputStream = brokersConnection.getInputStream();
+                OutputStream outputStream = brokersConnection.getOutputStream();
+
+                BrokerHandler consumerHandler = new BrokerHandler(brokersConnection,new ObjectInputStream(inputStream),new ObjectOutputStream(outputStream));
+                brokersList.add(consumerHandler);
+
+                Thread thread = new Thread(consumerHandler);
+                thread.start();
+
             } catch (IOException e) {
                 e.printStackTrace();
-            } finally {
-                /*try {
-                    providerSocket.close();
-                } catch (IOException ioException) {
-                    ioException.printStackTrace();
-                }*/
             }
         }
     }
 
-    public void getBrokerList() {}
-    public Broker hashTopic(ArtistName artname) {return null;}
-    public void push(ArtistName artname, Value value) {}
-    public void notifyFailure(Broker broker) {}
+    public boolean disconnect(BrokerHandler brokerHandler) {
+        for (BrokerHandler handler: this.brokersList)
+            if (handler == brokerHandler) {
+                this.brokersList.remove(handler);
+                return true;
+            }
+        return false;
+    }
 
     public static void main(String[] args) {
         Publisher publisher = new Publisher();
-        publisher.accept();
+        publisher.listen();
     }
 
-    @Override
-    public int compareTo(Publisher p) {
-        if (this.ipAddress.equals(p.ipAddress) && this.port == p.port)
-            return 0;
-        return -1;
-    }
 }
