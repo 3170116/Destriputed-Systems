@@ -4,146 +4,135 @@ import java.net.Socket;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
-class Broker {
+class Broker extends Node {
 
-    private String ipAddress;
-    private int port;
+    private class ConnectionHandler extends Thread {
 
-    private List<ConsumerHandler> consumersList;
-    private ServerSocket consumersSocket;
-    private Socket consumersConnection = null;
-
-    private Socket publisherSocket = null;
-    private ObjectOutputStream publisherOut = null;
-    private ObjectInputStream publisherIn = null;
-
-    private class ConsumerHandler implements Runnable {
-
-        private Socket socket;
         private ObjectInputStream in;
         private ObjectOutputStream out;
 
-        public ConsumerHandler(Socket socket, ObjectInputStream in, ObjectOutputStream out) {
-            this.socket = socket;
-            this.in = in;
-            this.out = out;
-        }
-
-        @Override
-        public void run() {
-            while (true) {
-                try {
-                    System.out.println((String) in.readObject());
-                    out.writeObject(new String("Hello Consumer from Broker"));
-                    publisherOut.writeObject("Hello Publisher from Broker");
-                } catch (UnknownHostException unknownHost) {
-                    System.err.println("You are trying to connect to an unknown host!");
-                } catch (SocketException e) {
-                    try {
-                        in.close();
-                        out.close();
-                        socket.close();
-                        break;
-                    } catch (IOException ex) {
-                        ex.printStackTrace();
-                    }
-                } catch (EOFException e) {
-                    break;
-                } catch (IOException ioException) {
-                    ioException.printStackTrace();
-                } catch (ClassNotFoundException e) {
-                    e.printStackTrace();
-                }
-            }
+        public ConnectionHandler(Socket connection) {
             try {
-                this.finalize();
-            } catch (Throwable throwable) {
-                throwable.printStackTrace();
-            }
-            disconnect(this);
-        }
-
-        public void send(Object msg) {
-            try {
-                out.writeObject(msg);
+                out = new ObjectOutputStream(connection.getOutputStream());
+                in = new ObjectInputStream(connection.getInputStream());
             } catch (IOException e) {
                 e.printStackTrace();
             }
         }
+
+        public void run() {
+            try {
+                Object object = in.readObject();
+
+                if (object instanceof ListOfBrokers) {
+                    ((ListOfBrokers) object).setListOfBrokers(brokers);
+                    out.writeObject(object);
+                } else if (object instanceof ArtistName) {
+                    System.out.println(object);
+
+                    new Thread() {
+                        @Override
+                        public void run() {
+                            Socket publisherSocket = null;
+                            ObjectOutputStream publisherOut = null;
+                            ObjectInputStream publisherIn = null;
+
+                            try {
+                                publisherSocket = new Socket("127.0.0.1", 4321);
+                                publisherOut = new ObjectOutputStream(publisherSocket.getOutputStream());
+                                publisherIn = new ObjectInputStream(publisherSocket.getInputStream());
+
+                                publisherOut.writeObject(object);
+                            } catch (IOException ioException) {
+                                ioException.printStackTrace();
+                            }
+
+                            try {
+                                Object musicFile = publisherIn.readObject();
+                                System.out.println(musicFile);
+                                out.writeObject(musicFile);
+                            } catch (UnknownHostException unknownHost) {
+                                System.err.println("You are trying to connect to an unknown host!");
+                            } catch (IOException ioException) {
+                                ioException.printStackTrace();
+                            } catch (ClassNotFoundException e) {
+                                e.printStackTrace();
+                            } finally {
+                                try {
+                                    publisherIn.close();
+                                    publisherOut.close();
+                                } catch (IOException ioException) {
+                                    ioException.printStackTrace();
+                                }
+                            }
+                        }
+                    }.start();
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
     }
 
-    public Broker() {
-        this.ipAddress = "127.0.0.1";
-        this.port = 5432;
+    private int port;
+
+    private ServerSocket socket;
+    private Socket connection = null;
+
+    private List<PublisherNode> publishersList;
+
+    public Broker(String ipAddress, int port) {
+        this.ipAddress = ipAddress;
+        this.port = port;
 
         try {
-            consumersSocket = new ServerSocket(this.port);
+            socket = new ServerSocket(this.port);
         } catch (IOException ioException) {
             ioException.printStackTrace();
         }
+    }
 
-        consumersList = new LinkedList<>();
-
-        try {
-            publisherSocket = new Socket("127.0.0.1", 4321);
-            publisherOut = new ObjectOutputStream(publisherSocket.getOutputStream());
-            publisherIn = new ObjectInputStream(publisherSocket.getInputStream());
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-        new Thread() {
-            @Override
-            public void run() {
-                while (true) {
-                    try {
-                        String msg = (String) publisherIn.readObject();
-                        System.out.println(msg);
-                        consumersList.get(0).send(msg);
-                    } catch (UnknownHostException unknownHost) {
-                        System.err.println("You are trying to connect to an unknown host!");
-                    } catch (IOException ioException) {
-                        ioException.printStackTrace();
-                    } catch (ClassNotFoundException e) {
-                        e.printStackTrace();
-                    }
-                }
-            }
-        }.start();
+    public void setPublishersList(List<PublisherNode> publishersList) {
+        this.publishersList = publishersList;
     }
 
     public void listen() {
-        while (true) {
+        try {
+            while (true) {
+                connection = socket.accept();
+
+                ConnectionHandler consumerHandler = new ConnectionHandler(connection);
+                consumerHandler.run();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
             try {
-                consumersConnection = consumersSocket.accept();
-
-                InputStream inputStream = consumersConnection.getInputStream();
-                OutputStream outputStream = consumersConnection.getOutputStream();
-
-                ConsumerHandler consumerHandler = new ConsumerHandler(consumersConnection,new ObjectInputStream(inputStream),new ObjectOutputStream(outputStream));
-                consumersList.add(consumerHandler);
-
-                Thread thread = new Thread(consumerHandler);
-                thread.start();
-
-            } catch (IOException e) {
-                e.printStackTrace();
+                socket.close();
+            } catch (IOException ioException) {
+                ioException.printStackTrace();
             }
         }
     }
 
-    public boolean disconnect(ConsumerHandler consumerHandler) {
-        for (ConsumerHandler handler: this.consumersList)
-            if (handler == consumerHandler) {
-                this.consumersList.remove(handler);
-                return true;
-            }
-        return false;
-    }
-
     public static void main(String[] args) {
-        Broker broker = new Broker();
-        broker.listen();
+        List<PublisherNode> publisherNodes = new LinkedList<>();
+        publisherNodes.add(new PublisherNode("127.0.0.1",4321));
+
+        List<BrokerNode> brokerNodes = new LinkedList<>();
+
+        BrokerNode brokerNode1 = new BrokerNode("127.0.0.1",5432);
+        brokerNode1.add(new ArtistName("Oikonomopoulos",null));
+
+        brokerNodes.add(brokerNode1);
+
+        Broker broker1 = new Broker("127.0.0.1",5432);
+        broker1.setBrokers(brokerNodes);
+        broker1.setPublishersList(publisherNodes);
+
+        broker1.listen();
     }
 }

@@ -1,3 +1,4 @@
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -6,13 +7,14 @@ import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.concurrent.TimeUnit;
 
-class Consumer {
+class Consumer extends Node {
 
-    private Thread pullThread;//the thread that receives the song
+    private Thread pushThread;
 
     private Socket requestSocket = null;
     private ObjectOutputStream out = null;
     private ObjectInputStream in = null;
+
 
     public Consumer() {
         try {
@@ -23,42 +25,59 @@ class Consumer {
             e.printStackTrace();
         }
 
-        pullThread = new Thread() {
+        pushThread = new Thread() {
             @Override
             public void run() {
                 while (true) {
                     try {
-                        System.out.println((String) in.readObject());
+                        Object object = in.readObject();
+                        //the first time we get all the brokers
+                        if (object instanceof ListOfBrokers) {
+                            brokers = ((ListOfBrokers) object).getListOfBrokers();
+                        } else {
+                            System.out.println(object);
+                        }
                     } catch (UnknownHostException unknownHost) {
                         System.err.println("You are trying to connect to an unknown host!");
                     } catch (SocketException e) {
-                        try {
-                            in.close();
-                            out.close();
-                            requestSocket.close();
-                            break;
-                        } catch (IOException ex) {
-                            ex.printStackTrace();
-                        }
+
                     } catch (IOException ioException) {
                         ioException.printStackTrace();
                     } catch (ClassNotFoundException e) {
                         e.printStackTrace();
                     }
                 }
-                try {
-                    this.finalize();
-                } catch (Throwable throwable) {
-                    throwable.printStackTrace();
-                }
             }
         };
-        pullThread.start();
+        pushThread.start();
     }
 
+    //finds the broker which can send the song of artist 'artistName'
+    public void push(ArtistName artistName) {
+        for (BrokerNode broker: brokers)
+            if (broker.getArtistNames().contains(artistName)) {
+                this.disconnect();
+
+                //makes a socket connection with the broker
+                try {
+                    requestSocket = new Socket(broker.getIpAddress(),broker.getPort());
+                    out = new ObjectOutputStream(requestSocket.getOutputStream());
+                    in = new ObjectInputStream(requestSocket.getInputStream());
+
+                    out.writeObject(artistName);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+    }
+
+    //we call register the first time to get the list of all brokers
     public void register() {
+        if (!brokers.isEmpty())
+            return;
+
         try {
-            out.writeObject(new String("Hello Broker from Consumer"));
+            out.writeObject(new ListOfBrokers());
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -70,6 +89,7 @@ class Consumer {
                 in.close();
             } catch (IOException e) {
                 e.printStackTrace();
+                return false;
             }
         }
 
@@ -78,29 +98,38 @@ class Consumer {
                 out.close();
             } catch (IOException e) {
                 e.printStackTrace();
+                return false;
             }
         }
 
         try {
             requestSocket.close();
-            return true;
         } catch (IOException ioException) {
             ioException.printStackTrace();
+            return false;
         }
-        return false;
+
+        return true;
     }
 
 
     public static void main(String[] args) {
         Consumer consumer = new Consumer();
-        consumer.register();
-        consumer.register();
+
         consumer.register();
         try {
             TimeUnit.SECONDS.sleep(3);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
+
+        consumer.push(new ArtistName("Oikonomopoulos",consumer.getIpAddress()));
+        try {
+            TimeUnit.SECONDS.sleep(3);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
         consumer.disconnect();
     }
 
