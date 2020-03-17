@@ -10,8 +10,6 @@ class MusicFile implements Serializable {
     private String genre;
     private byte[] musicFileExtract;
 
-    private String consumerIp;
-
     public MusicFile(String trackName, String artistName, String albumInfo, String genre, byte[] musicFileExtract) {
             this.trackName = trackName;
             this.artistName = artistName;
@@ -59,14 +57,6 @@ class MusicFile implements Serializable {
 
     public void setMusicFileExtract(byte[] musicFileExtract) {
             this.musicFileExtract = musicFileExtract;
-    }
-
-    public String getConsumerIp() {
-        return consumerIp;
-    }
-
-    public void setConsumerIp(String consumerIp) {
-        this.consumerIp = consumerIp;
     }
 
     @Override

@@ -4,7 +4,6 @@ import java.net.Socket;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 
 class Broker extends Node {
 
@@ -49,23 +48,27 @@ class Broker extends Node {
                                 ioException.printStackTrace();
                             }
 
-                            try {
-                                Object musicFile = publisherIn.readObject();
-                                System.out.println(musicFile);
-                                out.writeObject(musicFile);
-                            } catch (UnknownHostException unknownHost) {
-                                System.err.println("You are trying to connect to an unknown host!");
-                            } catch (IOException ioException) {
-                                ioException.printStackTrace();
-                            } catch (ClassNotFoundException e) {
-                                e.printStackTrace();
-                            } finally {
+                            while (true) {
                                 try {
-                                    publisherIn.close();
-                                    publisherOut.close();
+                                    Object musicFile = publisherIn.readObject();
+                                    System.out.println(musicFile);
+                                    out.writeObject(musicFile);
+                                    break;
+                                } catch (UnknownHostException unknownHost) {
+                                    System.err.println("You are trying to connect to an unknown host!");
                                 } catch (IOException ioException) {
                                     ioException.printStackTrace();
+                                } catch (ClassNotFoundException e) {
+                                    e.printStackTrace();
                                 }
+                            }
+
+                            try {
+                                publisherIn.close();
+                                publisherOut.close();
+                                publisherSocket.close();
+                            } catch (IOException ioException) {
+                                ioException.printStackTrace();
                             }
                         }
                     }.start();
@@ -100,22 +103,29 @@ class Broker extends Node {
     }
 
     public void listen() {
-        try {
-            while (true) {
-                connection = socket.accept();
+        new Thread() {
+            @Override
+            public void run() {
+                try {
+                    while (true) {
+                        connection = socket.accept();
 
-                ConnectionHandler consumerHandler = new ConnectionHandler(connection);
-                consumerHandler.run();
+                        ConnectionHandler consumerHandler = new ConnectionHandler(connection);
+                        consumerHandler.run();
+                    }
+                } catch (SocketException e) {
+
+                } catch (IOException e) {
+                    e.printStackTrace();
+                } finally {
+                    try {
+                        socket.close();
+                    } catch (IOException ioException) {
+                        ioException.printStackTrace();
+                    }
+                }
             }
-        } catch (IOException e) {
-            e.printStackTrace();
-        } finally {
-            try {
-                socket.close();
-            } catch (IOException ioException) {
-                ioException.printStackTrace();
-            }
-        }
+        }.start();
     }
 
     public static void main(String[] args) {
@@ -125,14 +135,21 @@ class Broker extends Node {
         List<BrokerNode> brokerNodes = new LinkedList<>();
 
         BrokerNode brokerNode1 = new BrokerNode("127.0.0.1",5432);
-        brokerNode1.add(new ArtistName("Oikonomopoulos",null));
+
+        BrokerNode brokerNode2 = new BrokerNode("129.0.0.1",5433);
 
         brokerNodes.add(brokerNode1);
+        //brokerNodes.add(brokerNode2);
 
         Broker broker1 = new Broker("127.0.0.1",5432);
         broker1.setBrokers(brokerNodes);
         broker1.setPublishersList(publisherNodes);
 
+        //Broker broker2 = new Broker("127.0.0.1",5433);
+        //broker2.setBrokers(brokerNodes);
+        //broker2.setPublishersList(publisherNodes);
+
         broker1.listen();
+        //broker2.listen();
     }
 }

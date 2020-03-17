@@ -25,8 +25,6 @@ class Publisher extends Node {
                 System.out.println(object);
 
                 MusicFile musicFile = new MusicFile(null,((ArtistName) object).getArtistName(),null,null,new byte[10]);
-                musicFile.setConsumerIp(((ArtistName) object).getConsumerIp());
-
                 out.writeObject(musicFile);
             } catch (Exception e) {
                 e.printStackTrace();
@@ -43,6 +41,7 @@ class Publisher extends Node {
 
     private int port;
 
+    private Thread pullThread;
     private ServerSocket socket;
     private Socket connection = null;
 
@@ -58,27 +57,36 @@ class Publisher extends Node {
     }
 
     public void pull() {
-        try {
-            while (true) {
-                connection = socket.accept();
+        pullThread = new Thread() {
+            @Override
+            public void run() {
+                try {
+                    while (true) {
+                        connection = socket.accept();
 
-                BrokerHandler brokerHandler = new BrokerHandler(connection);
-                brokerHandler.run();
+                        BrokerHandler brokerHandler = new BrokerHandler(connection);
+                        brokerHandler.run();
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                } finally {
+                    try {
+                        socket.close();
+                    } catch (IOException ioException) {
+                        ioException.printStackTrace();
+                    }
+                }
             }
-        } catch (IOException e) {
-            e.printStackTrace();
-        } finally {
-            try {
-                socket.close();
-            } catch (IOException ioException) {
-                ioException.printStackTrace();
-            }
-        }
+        };
+        pullThread.start();
     }
 
     public static void main(String[] args) {
-        Publisher publisher = new Publisher("127.0.0.1",4321);
-        publisher.pull();
+        Publisher publisher1 = new Publisher("127.0.0.1",4321);
+        Publisher publisher2 = new Publisher("127.0.0.1",4322);
+
+        publisher1.pull();
+        publisher2.pull();
     }
 
 }

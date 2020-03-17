@@ -1,4 +1,3 @@
-import java.io.EOFException;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -15,6 +14,7 @@ class Consumer extends Node {
     private ObjectOutputStream out = null;
     private ObjectInputStream in = null;
 
+    private int maxBrokerHashKey = 0;
 
     public Consumer() {
         try {
@@ -34,8 +34,18 @@ class Consumer extends Node {
                         //the first time we get all the brokers
                         if (object instanceof ListOfBrokers) {
                             brokers = ((ListOfBrokers) object).getListOfBrokers();
+
+                            //calculate the broker with the max hashKey
+                            int key = 0;
+                            for (BrokerNode brokerNode: brokers)
+                                if (hashKey(brokerNode) > key)
+                                    key = hashKey(brokerNode);
+
+                            maxBrokerHashKey = key;
                         } else {
                             System.out.println(object);
+                            disconnect();
+                            break;
                         }
                     } catch (UnknownHostException unknownHost) {
                         System.err.println("You are trying to connect to an unknown host!");
@@ -52,15 +62,18 @@ class Consumer extends Node {
         pushThread.start();
     }
 
+    public int hashKey(BrokerNode broker) {
+        return Math.abs((broker.getIpAddress() + broker.getPort()).hashCode());
+    }
+
     //finds the broker which can send the song of artist 'artistName'
     public void push(ArtistName artistName) {
-        for (BrokerNode broker: brokers)
-            if (broker.getArtistNames().contains(artistName)) {
-                this.disconnect();
-
+        this.disconnect();
+        for (BrokerNode broker: brokers) {
+            if (artistName.hashCode()%maxBrokerHashKey <= hashKey(broker)) {
                 //makes a socket connection with the broker
                 try {
-                    requestSocket = new Socket(broker.getIpAddress(),broker.getPort());
+                    requestSocket = new Socket(broker.getIpAddress(), broker.getPort());
                     out = new ObjectOutputStream(requestSocket.getOutputStream());
                     in = new ObjectInputStream(requestSocket.getInputStream());
 
@@ -69,6 +82,7 @@ class Consumer extends Node {
                     e.printStackTrace();
                 }
             }
+        }
     }
 
     //we call register the first time to get the list of all brokers
@@ -118,19 +132,12 @@ class Consumer extends Node {
 
         consumer.register();
         try {
-            TimeUnit.SECONDS.sleep(3);
+            TimeUnit.SECONDS.sleep(2);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
 
-        consumer.push(new ArtistName("Oikonomopoulos",consumer.getIpAddress()));
-        try {
-            TimeUnit.SECONDS.sleep(3);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-
-        consumer.disconnect();
+        consumer.push(new ArtistName("Remos"));
     }
 
 }
