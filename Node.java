@@ -1,17 +1,15 @@
-import java.io.Serializable;
 import java.util.LinkedList;
 import java.util.List;
 
 class Node {
 
-    protected String ipAddress;//we use it as ID
+    protected String ipAddress;
+    protected int port;
+
     protected List<BrokerNode> brokers;
 
     public Node() {
         this.brokers = new LinkedList<>();
-    }
-    public Node(List<BrokerNode> brokers) {
-        this.brokers = brokers;
     }
 
     public String getIpAddress() {
@@ -21,6 +19,10 @@ class Node {
     public void setIpAddress(String ipAddress) {
         this.ipAddress = ipAddress;
     }
+
+    public int getPort() { return port; }
+
+    public void setPort(int port) { this.port = port; }
 
     public List<BrokerNode> getBrokers() {
         return brokers;

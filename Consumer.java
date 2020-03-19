@@ -9,6 +9,7 @@ import java.util.concurrent.TimeUnit;
 class Consumer extends Node {
 
     private Thread pushThread;
+    private boolean logOut = false;
 
     private Socket requestSocket = null;
     private ObjectOutputStream out = null;
@@ -18,6 +19,10 @@ class Consumer extends Node {
 
     public Consumer() {
         try {
+            /*
+            the port 5432 is for the first (default) broker
+            so it will receives us the list of all brokers
+            */
             requestSocket = new Socket("127.0.0.1", 5432);
             out = new ObjectOutputStream(requestSocket.getOutputStream());
             in = new ObjectInputStream(requestSocket.getInputStream());
@@ -25,10 +30,13 @@ class Consumer extends Node {
             e.printStackTrace();
         }
 
+        /*
+        we accept the music files from brokers
+         */
         pushThread = new Thread() {
             @Override
             public void run() {
-                while (true) {
+                while (!logOut) {
                     try {
                         Object object = in.readObject();
                         //the first time we get all the brokers
@@ -45,7 +53,7 @@ class Consumer extends Node {
                         } else {
                             System.out.println(object);
                             disconnect();
-                            break;
+                            //break;
                         }
                     } catch (UnknownHostException unknownHost) {
                         System.err.println("You are trying to connect to an unknown host!");
@@ -126,6 +134,7 @@ class Consumer extends Node {
         return true;
     }
 
+    public void logOut() {this.logOut = true;}
 
     public static void main(String[] args) {
         Consumer consumer = new Consumer();
@@ -138,6 +147,20 @@ class Consumer extends Node {
         }
 
         consumer.push(new ArtistName("Remos"));
+
+        try {
+            TimeUnit.SECONDS.sleep(2);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        consumer.push(new ArtistName("Vertis"));
+
+        try {
+            TimeUnit.SECONDS.sleep(2);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        consumer.logOut();
     }
 
 }

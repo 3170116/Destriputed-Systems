@@ -1,7 +1,8 @@
 import java.io.Serializable;
-import java.util.LinkedList;
-import java.util.List;
 
+/*
+we use this class to send to consumers which brokers exist
+ */
 class BrokerNode implements Serializable {
 
     private String ipAddress;

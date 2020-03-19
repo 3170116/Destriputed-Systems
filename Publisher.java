@@ -4,6 +4,9 @@ import java.net.Socket;
 
 class Publisher extends Node {
 
+    /*
+    handles the connection between the publisher and a broker
+     */
     private class BrokerHandler extends Thread {
 
         private ObjectInputStream in;
@@ -25,6 +28,11 @@ class Publisher extends Node {
                 System.out.println(object);
 
                 MusicFile musicFile = new MusicFile(null,((ArtistName) object).getArtistName(),null,null,new byte[10]);
+
+                /*
+                here will read from the dataset the mp3 file
+                 */
+
                 out.writeObject(musicFile);
             } catch (Exception e) {
                 e.printStackTrace();
@@ -38,8 +46,6 @@ class Publisher extends Node {
             }
         }
     }
-
-    private int port;
 
     private Thread pullThread;
     private ServerSocket socket;
@@ -82,11 +88,8 @@ class Publisher extends Node {
     }
 
     public static void main(String[] args) {
-        Publisher publisher1 = new Publisher("127.0.0.1",4321);
-        Publisher publisher2 = new Publisher("127.0.0.1",4322);
-
-        publisher1.pull();
-        publisher2.pull();
+        Publisher publisher = new Publisher("127.0.0.1",4321);
+        publisher.pull();
     }
 
 }

@@ -7,6 +7,17 @@ import java.util.*;
 
 class Broker extends Node {
 
+    /*
+    this class handles the requests that the broker receives
+
+    if the input object is instance of 'ListOfBrokers' sends back to consumer
+    the list of all brokers
+
+    if the input object is instance of 'ArtistName' makes a socket to the appropriate
+    publisher to send it the object
+
+    if the input object is instance of 'MusicFile' it sends it back to the appropriate consumer
+     */
     private class ConnectionHandler extends Thread {
 
         private ObjectInputStream in;
@@ -80,8 +91,6 @@ class Broker extends Node {
 
     }
 
-    private int port;
-
     private ServerSocket socket;
     private Socket connection = null;
 
@@ -108,6 +117,7 @@ class Broker extends Node {
             public void run() {
                 try {
                     while (true) {
+                        //receives a new object
                         connection = socket.accept();
 
                         ConnectionHandler consumerHandler = new ConnectionHandler(connection);
@@ -136,20 +146,12 @@ class Broker extends Node {
 
         BrokerNode brokerNode1 = new BrokerNode("127.0.0.1",5432);
 
-        BrokerNode brokerNode2 = new BrokerNode("129.0.0.1",5433);
-
         brokerNodes.add(brokerNode1);
-        //brokerNodes.add(brokerNode2);
 
         Broker broker1 = new Broker("127.0.0.1",5432);
         broker1.setBrokers(brokerNodes);
         broker1.setPublishersList(publisherNodes);
 
-        //Broker broker2 = new Broker("127.0.0.1",5433);
-        //broker2.setBrokers(brokerNodes);
-        //broker2.setPublishersList(publisherNodes);
-
         broker1.listen();
-        //broker2.listen();
     }
 }

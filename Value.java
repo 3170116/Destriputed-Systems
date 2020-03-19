@@ -3,7 +3,6 @@ class Value {
     private MusicFile musicFile;
 
     public Value(MusicFile musicFile) {
-        super();
         this.musicFile = musicFile;
     }
 
