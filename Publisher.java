@@ -1,6 +1,7 @@
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.Arrays;
 
 class Publisher extends Node {
 
@@ -24,16 +25,34 @@ class Publisher extends Node {
         @Override
         public void run() {
             try {
-                Object object = in.readObject();
-                System.out.println(object);
+                Object object = in.readObject();//title
+                MusicFile mfile = MusicFile.readMusicFile(((ArtistName) object).getArtistName());
 
-                MusicFile musicFile = new MusicFile(null,((ArtistName) object).getArtistName(),null,null,new byte[10]);
+                System.out.println(mfile);
 
-                /*
-                here will read from the dataset the mp3 file
-                 */
+                //Chunk size n and total chunks to be sent
+                int n = 1024;
+                int mfSize = mfile.getMusicFileExtract().length;
 
-                out.writeObject(musicFile);
+                if (n >= mfSize) {
+                    mfile.isLast(true);
+                    out.writeObject(mfile);
+                }
+
+                for (int i = n;; i += n){
+
+                    byte[] tmpBytes = Arrays.copyOfRange(mfile.getMusicFileExtract(), i - n, Math.min(mfSize,i));
+                    MusicFile tmpFile = new MusicFile(null,mfile.getArtistName(),null,null,tmpBytes);
+
+                    if (mfSize <= i)
+                        tmpFile.isLast(true);
+
+                    out.writeObject(tmpFile);
+
+                    if (i >= mfSize)
+                        break;
+                }
+
             } catch (Exception e) {
                 e.printStackTrace();
             } finally {

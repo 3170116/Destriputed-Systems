@@ -5,13 +5,13 @@ import java.nio.file.Paths;
 
 public class MusicFile implements java.io.Serializable{
 	
-	String trackName;
-	String artistName;
-	String albumInfo;
-	String genre;
-	byte[] musicFileExtract;
-	
-	
+	private String trackName;
+	private String artistName;
+	private String albumInfo;
+	private String genre;
+	private byte[] musicFileExtract;
+
+	private boolean isLast;
 	
 	/**Music file default constructor*/
 	public MusicFile(String trackName, String artistName, String albumInfo, String genre, byte[] musicFileExtract) {
@@ -20,11 +20,11 @@ public class MusicFile implements java.io.Serializable{
 		this.albumInfo = albumInfo;
 		this.genre = genre;
 		this.musicFileExtract = musicFileExtract;
+
+		this.isLast = false;
 	}
 
-	public MusicFile(int mfSize){
-		this.musicFileExtract = new byte[mfSize];
-	}
+	public MusicFile(int mfSize){ this.musicFileExtract = new byte[mfSize]; }
 	
 	/**Returns track name*/
 	public String getTrackName() {
@@ -66,28 +66,32 @@ public class MusicFile implements java.io.Serializable{
 	public void setMusicFileExtract(byte[] musicFileExtract) {
 		this.musicFileExtract = musicFileExtract;
 	}
-	
-	
-	
+
+	public boolean isLast() { return isLast; }
+
+	public void isLast(boolean isLast) { this.isLast = isLast; }
+
+
 	public static MusicFile readMusicFile(String name)   throws IOException {
-		
 		String artistName = "Mods";
 		String trackName = name;
 		String duration = "6:15";
 		String albumInfo = "Greatest Hits";
 		String genre = "Psychedelic Pogressive Techno-Rock";
 		
-		byte [] musicFileExtract = Files.readAllBytes(Paths.get("C:\\Users\\HP\\Desktop\\HW1_DIST\\" +name + ".mp3"));
+		byte [] musicFileExtract = Files.readAllBytes(Paths.get("out/" + name + ".wav"));
+
 		return new MusicFile(trackName,artistName, albumInfo,genre,musicFileExtract);
 	}
 	
 	public static void saveMusicFile(MusicFile musicfile, String name) throws IOException {
-		
-		try (FileOutputStream stream = new FileOutputStream(name + ".mp3")) {
+		try (FileOutputStream stream = new FileOutputStream("out/" + name + ".wav")) {
 		    stream.write(musicfile.musicFileExtract);
 		}
-		
 	}
-	
 
+	@Override
+	public String toString() {
+		return artistName + " bytes: " + musicFileExtract.length;
+	}
 }

@@ -1,6 +1,4 @@
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
+import java.io.*;
 import java.net.Socket;
 import java.net.SocketException;
 import java.net.UnknownHostException;
@@ -52,7 +50,28 @@ class Consumer extends Node {
                             maxBrokerHashKey = key;
                         } else {
                             System.out.println(object);
-                            disconnect();
+
+                            /*
+                            we create a temporary file at temp folder
+                            we store the bytes of music file there
+                            then the audio player reads them from it
+                            and finally we delete the file
+
+                            File tempFile = File.createTempFile(((MusicFile) object).getArtistName(), ".wav", null);
+                            FileOutputStream fos = new FileOutputStream(tempFile);
+                            fos.write(((MusicFile) object).getMusicFileExtract());
+                            fos.close();
+
+                            SimpleAudioPlayer simpleAudioPlayer = new SimpleAudioPlayer();
+                            simpleAudioPlayer.path = tempFile.getAbsolutePath();
+                            System.out.println(simpleAudioPlayer.getPath());
+                            simpleAudioPlayer.startSong();
+
+                            tempFile.delete();
+                            */
+
+                            if (((MusicFile) object).isLast())
+                                disconnect();
                             //break;
                         }
                     } catch (UnknownHostException unknownHost) {
@@ -89,6 +108,7 @@ class Consumer extends Node {
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
+                break;
             }
         }
     }
@@ -146,17 +166,10 @@ class Consumer extends Node {
             e.printStackTrace();
         }
 
-        consumer.push(new ArtistName("Remos"));
+        consumer.push(new ArtistName("ahem_x"));
 
         try {
-            TimeUnit.SECONDS.sleep(2);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-        consumer.push(new ArtistName("Vertis"));
-
-        try {
-            TimeUnit.SECONDS.sleep(2);
+            TimeUnit.SECONDS.sleep(8);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
