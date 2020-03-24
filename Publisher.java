@@ -36,6 +36,7 @@ class Publisher extends Node {
 
                 if (n >= mfSize) {
                     mfile.isLast(true);
+                    mfile.save(((ArtistName) object).save());
                     out.writeObject(mfile);
                 }
 
@@ -46,6 +47,7 @@ class Publisher extends Node {
 
                     if (mfSize <= i)
                         tmpFile.isLast(true);
+                    tmpFile.save(((ArtistName) object).save());
 
                     out.writeObject(tmpFile);
 

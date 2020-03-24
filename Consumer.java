@@ -2,12 +2,18 @@ import java.io.*;
 import java.net.Socket;
 import java.net.SocketException;
 import java.net.UnknownHostException;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Queue;
 import java.util.concurrent.TimeUnit;
 
 class Consumer extends Node {
 
     private Thread pushThread;
     private boolean logOut = false;
+
+    private Queue<Object> chunks;
+    private int totalBytes;//the sum of bytes which the MusicFile objects will have
 
     private Socket requestSocket = null;
     private ObjectOutputStream out = null;
@@ -16,6 +22,9 @@ class Consumer extends Node {
     private int maxBrokerHashKey = 0;
 
     public Consumer() {
+        chunks = new LinkedList<>();
+        totalBytes = 0;
+
         try {
             /*
             the port 5432 is for the first (default) broker
@@ -50,29 +59,30 @@ class Consumer extends Node {
                             maxBrokerHashKey = key;
                         } else {
                             System.out.println(object);
+                            chunks.add(object);
+                            totalBytes += ((MusicFile) object).getMusicFileExtract().length;
 
-                            /*
-                            we create a temporary file at temp folder
-                            we store the bytes of music file there
-                            then the audio player reads them from it
-                            and finally we delete the file
+                            if (((MusicFile) object).isLast()) {
+                                if (((MusicFile) object).save()) {
+                                    //merge all chunks into one file and save it to temporary folder
+                                    File tempFile = File.createTempFile(((MusicFile) object).getArtistName(), ".mp3", null);
+                                    FileOutputStream fos = new FileOutputStream(tempFile);
 
-                            File tempFile = File.createTempFile(((MusicFile) object).getArtistName(), ".wav", null);
-                            FileOutputStream fos = new FileOutputStream(tempFile);
-                            fos.write(((MusicFile) object).getMusicFileExtract());
-                            fos.close();
+                                    byte[] musicBytes = new byte[totalBytes];
 
-                            SimpleAudioPlayer simpleAudioPlayer = new SimpleAudioPlayer();
-                            simpleAudioPlayer.path = tempFile.getAbsolutePath();
-                            System.out.println(simpleAudioPlayer.getPath());
-                            simpleAudioPlayer.startSong();
+                                    int i = 0;
+                                    while (!chunks.isEmpty()) {
+                                        for (int j = 0; j < ((MusicFile) chunks.peek()).getMusicFileExtract().length; j++)
+                                            musicBytes[i++] = ((MusicFile) chunks.peek()).getMusicFileExtract()[j];
+                                        chunks.poll();
+                                    }
 
-                            tempFile.delete();
-                            */
-
-                            if (((MusicFile) object).isLast())
+                                    fos.write(musicBytes);
+                                    fos.close();
+                                }
                                 disconnect();
-                            //break;
+                                logOut();
+                            }
                         }
                     } catch (UnknownHostException unknownHost) {
                         System.err.println("You are trying to connect to an unknown host!");
@@ -166,14 +176,9 @@ class Consumer extends Node {
             e.printStackTrace();
         }
 
-        consumer.push(new ArtistName("ahem_x"));
-
-        try {
-            TimeUnit.SECONDS.sleep(8);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-        consumer.logOut();
+        ArtistName artistName = new ArtistName("Arpent");
+        artistName.save(false);
+        consumer.push(artistName);
     }
 
 }
