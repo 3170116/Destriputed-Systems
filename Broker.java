@@ -39,7 +39,7 @@ class Broker extends Node {
                 if (object instanceof ListOfBrokers) {
                     ((ListOfBrokers) object).setListOfBrokers(brokers);
                     out.writeObject(object);
-                } else if (object instanceof ArtistName) {
+                } else if (object instanceof TrackName) {
                     new Thread() {
                         @Override
                         public void run() {
@@ -49,7 +49,7 @@ class Broker extends Node {
 
                             //find the appropriate publisher
                             for (PublisherNode publisherNode: publishersList) {
-                                if (((ArtistName) object).hashCode()%maxPublisherHashKey <= hashKey(publisherNode)) {
+                                if (publisherNode.handlesArtist(((TrackName) object).getTrackName().substring(0,1))) {
                                     //makes a socket connection with the broker
                                     try {
                                         publisherSocket = new Socket(publisherNode.getIpAddress(), publisherNode.getPort());
@@ -67,7 +67,6 @@ class Broker extends Node {
                             while (true) {
                                 try {
                                     MusicFile musicFile = (MusicFile) publisherIn.readObject();
-                                    System.out.println(musicFile);
                                     out.writeObject(musicFile);
 
                                     if (musicFile.isLast())
@@ -104,7 +103,6 @@ class Broker extends Node {
     private Socket connection = null;
 
     private List<PublisherNode> publishersList;
-    private int maxPublisherHashKey = 0;
 
     public Broker(String ipAddress, int port) {
         this.ipAddress = ipAddress;
@@ -117,20 +115,7 @@ class Broker extends Node {
         }
     }
 
-    public void setPublishersList(List<PublisherNode> publishersList) {
-        this.publishersList = publishersList;
-
-        int key = 0;
-        for (PublisherNode publisherNode: publishersList)
-            if (hashKey(publisherNode) > key)
-                key = hashKey(publisherNode);
-
-        maxPublisherHashKey = key;
-    }
-
-    public int hashKey(PublisherNode publisherNode) {
-        return Math.abs((publisherNode.getIpAddress() + publisherNode.getPort()).hashCode());
-    }
+    public void setPublishersList(List<PublisherNode> publishersList) { this.publishersList = publishersList; }
 
     public void listen() {
         new Thread() {
@@ -161,19 +146,28 @@ class Broker extends Node {
 
     public static void main(String[] args) {
         List<PublisherNode> publisherNodes = new LinkedList<>();
-        publisherNodes.add(new PublisherNode("127.0.0.1",4321));
-        publisherNodes.add(new PublisherNode("127.0.0.1",4322));
+        publisherNodes.add(new PublisherNode("127.0.0.1",4321,"A","H"));
+        publisherNodes.add(new PublisherNode("127.0.0.1",4322,"I","Z"));
 
         List<BrokerNode> brokerNodes = new LinkedList<>();
 
         BrokerNode brokerNode1 = new BrokerNode("127.0.0.1",5432);
+        BrokerNode brokerNode2 = new BrokerNode("127.0.0.1",5433);
 
         brokerNodes.add(brokerNode1);
+        brokerNodes.add(brokerNode2);
+
 
         Broker broker1 = new Broker("127.0.0.1",5432);
         broker1.setBrokers(brokerNodes);
         broker1.setPublishersList(publisherNodes);
-
         broker1.listen();
+
+        /*
+        Broker broker2 = new Broker("127.0.0.1",5433);
+        broker2.setBrokers(brokerNodes);
+        broker2.setPublishersList(publisherNodes);
+        broker2.listen();
+         */
     }
 }

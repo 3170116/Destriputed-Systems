@@ -58,30 +58,40 @@ class Consumer extends Node {
 
                             maxBrokerHashKey = key;
                         } else {
-                            System.out.println(object);
-                            chunks.add(object);
-                            totalBytes += ((MusicFile) object).getMusicFileExtract().length;
 
-                            if (((MusicFile) object).isLast()) {
-                                if (((MusicFile) object).save()) {
-                                    //merge all chunks into one file and save it to temporary folder
-                                    File tempFile = File.createTempFile(((MusicFile) object).getArtistName(), ".mp3", null);
-                                    FileOutputStream fos = new FileOutputStream(tempFile);
-
-                                    byte[] musicBytes = new byte[totalBytes];
-
-                                    int i = 0;
-                                    while (!chunks.isEmpty()) {
-                                        for (int j = 0; j < ((MusicFile) chunks.peek()).getMusicFileExtract().length; j++)
-                                            musicBytes[i++] = ((MusicFile) chunks.peek()).getMusicFileExtract()[j];
-                                        chunks.poll();
-                                    }
-
-                                    fos.write(musicBytes);
-                                    fos.close();
-                                }
+                            if (((MusicFile) object).getMusicFileExtract() == null) {
+                                System.out.println("File not found!");
                                 disconnect();
                                 logOut();
+                            } else {
+                                System.out.println(object);
+
+                                chunks.add(object);
+                                totalBytes += ((MusicFile) object).getMusicFileExtract().length;
+
+                                if (((MusicFile) object).isLast()) {
+                                    if (((MusicFile) object).save()) {
+                                        //merge all chunks into one file and save it to temporary folder
+                                        File tempFile = File.createTempFile(((MusicFile) object).getTrackName(), ".mp3", null);
+                                        FileOutputStream fos = new FileOutputStream(tempFile);
+
+                                        System.out.println("Saved to: " + tempFile.getAbsolutePath());
+
+                                        byte[] musicBytes = new byte[totalBytes];
+
+                                        int i = 0;
+                                        while (!chunks.isEmpty()) {
+                                            for (int j = 0; j < ((MusicFile) chunks.peek()).getMusicFileExtract().length; j++)
+                                                musicBytes[i++] = ((MusicFile) chunks.peek()).getMusicFileExtract()[j];
+                                            chunks.poll();
+                                        }
+
+                                        fos.write(musicBytes);
+                                        fos.close();
+                                    }
+                                    disconnect();
+                                    logOut();
+                                }
                             }
                         }
                     } catch (UnknownHostException unknownHost) {
@@ -104,17 +114,17 @@ class Consumer extends Node {
     }
 
     //finds the broker which can send the song of artist 'artistName'
-    public void push(ArtistName artistName) {
+    public void push(TrackName trackName) {
         this.disconnect();
         for (BrokerNode broker: brokers) {
-            if (artistName.hashCode()%maxBrokerHashKey <= hashKey(broker)) {
+            if (trackName.hashCode()%maxBrokerHashKey <= hashKey(broker)) {
                 //makes a socket connection with the broker
                 try {
                     requestSocket = new Socket(broker.getIpAddress(), broker.getPort());
                     out = new ObjectOutputStream(requestSocket.getOutputStream());
                     in = new ObjectInputStream(requestSocket.getInputStream());
 
-                    out.writeObject(artistName);
+                    out.writeObject(trackName);
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -176,9 +186,9 @@ class Consumer extends Node {
             e.printStackTrace();
         }
 
-        ArtistName artistName = new ArtistName("Arpent");
-        artistName.save(false);
-        consumer.push(artistName);
+        TrackName trackName = new TrackName("Hor Hor");
+        trackName.save(true);
+        consumer.push(trackName);
     }
 
 }

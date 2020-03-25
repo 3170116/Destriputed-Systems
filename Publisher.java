@@ -6,7 +6,7 @@ import java.util.Arrays;
 class Publisher extends Node {
 
     /*
-    handles the connection between the publisher and a broker
+        handles the connection between the publisher and a broker
      */
     private class BrokerHandler extends Thread {
 
@@ -26,33 +26,38 @@ class Publisher extends Node {
         public void run() {
             try {
                 Object object = in.readObject();//title
-                MusicFile mfile = MusicFile.readMusicFile(((ArtistName) object).getArtistName());
+                MusicFile mfile = MusicFile.readMusicFile(((TrackName) object).getTrackName());
 
-                System.out.println(mfile);
+                //file found!
+                if (mfile.getMusicFileExtract() != null) {
+                    System.out.println(mfile);
 
-                //Chunk size n and total chunks to be sent
-                int n = 1024;
-                int mfSize = mfile.getMusicFileExtract().length;
+                    //Chunk size n and total chunks to be sent
+                    int n = 1024;
+                    int mfSize = mfile.getMusicFileExtract().length;
 
-                if (n >= mfSize) {
-                    mfile.isLast(true);
-                    mfile.save(((ArtistName) object).save());
+                    if (n >= mfSize) {
+                        mfile.isLast(true);
+                        mfile.save(((TrackName) object).save());
+                        out.writeObject(mfile);
+                    }
+
+                    for (int i = n;; i += n){
+
+                        byte[] tmpBytes = Arrays.copyOfRange(mfile.getMusicFileExtract(), i - n, Math.min(mfSize,i));
+                        MusicFile tmpFile = new MusicFile(mfile.getTrackName(),mfile.getArtistName(),mfile.getAlbumInfo(),mfile.getGenre(),tmpBytes);
+
+                        if (mfSize <= i)
+                            tmpFile.isLast(true);
+                        tmpFile.save(((TrackName) object).save());
+
+                        out.writeObject(tmpFile);
+
+                        if (i >= mfSize)
+                            break;
+                    }
+                } else {
                     out.writeObject(mfile);
-                }
-
-                for (int i = n;; i += n){
-
-                    byte[] tmpBytes = Arrays.copyOfRange(mfile.getMusicFileExtract(), i - n, Math.min(mfSize,i));
-                    MusicFile tmpFile = new MusicFile(null,mfile.getArtistName(),null,null,tmpBytes);
-
-                    if (mfSize <= i)
-                        tmpFile.isLast(true);
-                    tmpFile.save(((ArtistName) object).save());
-
-                    out.writeObject(tmpFile);
-
-                    if (i >= mfSize)
-                        break;
                 }
 
             } catch (Exception e) {
@@ -109,8 +114,11 @@ class Publisher extends Node {
     }
 
     public static void main(String[] args) {
-        Publisher publisher = new Publisher("127.0.0.1",4321);
-        publisher.pull();
+        Publisher publisher1 = new Publisher("127.0.0.1",4321);
+        //Publisher publisher2 = new Publisher("127.0.0.1",4322);
+
+        publisher1.pull();
+        //publisher2.pull();
     }
 
 }
