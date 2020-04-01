@@ -3,7 +3,7 @@ import java.io.Serializable;
 /*
 we use this class to send to consumers which brokers exist
  */
-class BrokerNode implements Serializable {
+class BrokerNode implements Serializable, Comparable<BrokerNode> {
 
     private String ipAddress;
     private int port;
@@ -21,4 +21,8 @@ class BrokerNode implements Serializable {
         return port;
     }
 
+    @Override
+    public int compareTo(BrokerNode o) {
+        return Math.abs((ipAddress + port).hashCode()) < Math.abs((o.getIpAddress() + o.getPort()).hashCode())? -1: 1;
+    }
 }

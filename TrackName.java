@@ -3,25 +3,29 @@ import java.io.Serializable;
 class TrackName implements Serializable {
 
     private String trackName;
+    private String artistName;
     private boolean save;
 
-    public TrackName(String trackName) {
+    public TrackName(String trackName, String artistName) {
         this.trackName = trackName;
+        this.artistName = artistName;
         this.save = false;
     }
 
     public String getTrackName() { return trackName; }
+
+    public String getArtistName() { return artistName; }
 
     public boolean save() { return save; }
 
     public void save(boolean save) { this.save = save; }
 
     @Override
-    public boolean equals(Object obj) { return this.trackName.equals(((TrackName) obj).trackName)? true: false; }
+    public boolean equals(Object obj) { return (this.trackName + this.artistName).equals(((TrackName) obj).trackName + ((TrackName) obj).artistName)? true: false; }
 
     @Override
     public int hashCode() {
-        return Math.abs(trackName.hashCode());
+        return Math.abs(artistName.hashCode());
     }
 
     @Override

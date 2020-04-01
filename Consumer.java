@@ -2,6 +2,7 @@ import java.io.*;
 import java.net.Socket;
 import java.net.SocketException;
 import java.net.UnknownHostException;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.Queue;
 import java.util.concurrent.TimeUnit;
@@ -56,6 +57,9 @@ class Consumer extends Node {
                                     key = hashKey(brokerNode);
 
                             maxBrokerHashKey = key;
+
+                            //sort the brokers according to hashCode
+                            Collections.sort(brokers);
                         } else {
 
                             if (((MusicFile) object).getMusicFileExtract() == null) {
@@ -185,7 +189,7 @@ class Consumer extends Node {
             e.printStackTrace();
         }
 
-        TrackName trackName = new TrackName("Hor Hor");
+        TrackName trackName = new TrackName("Hor Hor","Alexander Nakarada");
         trackName.save(true);
         consumer.push(trackName);
     }

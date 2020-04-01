@@ -26,7 +26,7 @@ class Publisher extends Node {
         public void run() {
             try {
                 Object object = in.readObject();//title
-                MusicFile mfile = MusicFile.readMusicFile(((TrackName) object).getTrackName());
+                MusicFile mfile = MusicFile.readMusicFile(((TrackName) object).getTrackName(),((TrackName) object).getArtistName());
 
                 //file found!
                 if (mfile.getMusicFileExtract() != null) {
