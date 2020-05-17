@@ -91,6 +91,83 @@ class Broker extends Node {
                             }
                         }
                     }.start();
+                } else if (object instanceof ListOfArtists) {
+                    Socket publisherSocket = new Socket("127.0.0.1", 4321);
+                    ObjectOutputStream publisherOut = new ObjectOutputStream(publisherSocket.getOutputStream());
+                    ObjectInputStream publisherIn = new ObjectInputStream(publisherSocket.getInputStream());
+
+                    publisherOut.writeObject(object);
+
+                    while (true) {
+                        try {
+                            ListOfArtists artists = (ListOfArtists) publisherIn.readObject();
+                            out.writeObject(artists);
+
+                            break;
+                        } catch (UnknownHostException unknownHost) {
+                            System.err.println("You are trying to connect to an unknown host!");
+                        } catch (EOFException e) {
+
+                        } catch (IOException ioException) {
+                            ioException.printStackTrace();
+                        } catch (ClassNotFoundException e) {
+                            e.printStackTrace();
+                        }
+                    }
+
+                    try {
+                        publisherIn.close();
+                        publisherOut.close();
+                        publisherSocket.close();
+                    } catch (IOException ioException) {
+                        ioException.printStackTrace();
+                    }
+                } else if (object instanceof ListOfSongs) {
+                    Socket publisherSocket = null;
+                    ObjectOutputStream publisherOut = null;
+                    ObjectInputStream publisherIn = null;
+
+                    //find the appropriate publisher
+                    for (PublisherNode publisherNode: publishersList) {
+                        if (publisherNode.handlesArtist(((ListOfSongs) object).getArtist().substring(0,1))) {
+                            //makes a socket connection with the broker
+                            try {
+                                publisherSocket = new Socket(publisherNode.getIpAddress(), publisherNode.getPort());
+                                publisherOut = new ObjectOutputStream(publisherSocket.getOutputStream());
+                                publisherIn = new ObjectInputStream(publisherSocket.getInputStream());
+
+                                publisherOut.writeObject(object);
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                            }
+                            break;
+                        }
+                    }
+
+                    while (true) {
+                        try {
+                            ListOfSongs songs = (ListOfSongs) publisherIn.readObject();
+                            out.writeObject(songs);
+
+                            break;
+                        } catch (UnknownHostException unknownHost) {
+                            System.err.println("You are trying to connect to an unknown host!");
+                        } catch (EOFException e) {
+
+                        } catch (IOException ioException) {
+                            ioException.printStackTrace();
+                        } catch (ClassNotFoundException e) {
+                            e.printStackTrace();
+                        }
+                    }
+
+                    try {
+                        publisherIn.close();
+                        publisherOut.close();
+                        publisherSocket.close();
+                    } catch (IOException ioException) {
+                        ioException.printStackTrace();
+                    }
                 }
             } catch (Exception e) {
                 e.printStackTrace();
@@ -146,16 +223,16 @@ class Broker extends Node {
 
     public static void main(String[] args) {
         List<PublisherNode> publisherNodes = new LinkedList<>();
-        publisherNodes.add(new PublisherNode("127.0.0.1",4321,"A","H"));
-        publisherNodes.add(new PublisherNode("127.0.0.1",4322,"I","Z"));
+        publisherNodes.add(new PublisherNode("127.0.0.1",4321,"A","Z"));
+        //publisherNodes.add(new PublisherNode("127.0.0.1",4322,"I","Z"));
 
         List<BrokerNode> brokerNodes = new LinkedList<>();
 
         BrokerNode brokerNode1 = new BrokerNode("127.0.0.1",5432);
-        BrokerNode brokerNode2 = new BrokerNode("127.0.0.1",5433);
+        //BrokerNode brokerNode2 = new BrokerNode("127.0.0.1",5433);
 
         brokerNodes.add(brokerNode1);
-        brokerNodes.add(brokerNode2);
+        //brokerNodes.add(brokerNode2);
 
 
         Broker broker1 = new Broker("127.0.0.1",5432);

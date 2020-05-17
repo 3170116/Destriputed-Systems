@@ -1,7 +1,13 @@
+import com.mpatric.mp3agic.*;
+
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.LinkedList;
+import java.util.List;
 
 class Publisher extends Node {
 
@@ -25,39 +31,54 @@ class Publisher extends Node {
         @Override
         public void run() {
             try {
-                Object object = in.readObject();//title
-                MusicFile mfile = MusicFile.readMusicFile(((TrackName) object).getTrackName(),((TrackName) object).getArtistName());
+                Object object = in.readObject();
 
-                //file found!
-                if (mfile.getMusicFileExtract() != null) {
-                    System.out.println(mfile);
+                if (object instanceof TrackName) {
+                    MusicFile mfile = readMusicFile(((TrackName) object).getTrackName(),((TrackName) object).getArtistName());
 
-                    //Chunk size n and total chunks to be sent
-                    int n = 1024;
-                    int mfSize = mfile.getMusicFileExtract().length;
+                    //file found!
+                    if (mfile.getMusicFileExtract() != null) {
+                        System.out.println(mfile);
 
-                    if (n >= mfSize) {
-                        mfile.isLast(true);
-                        mfile.save(((TrackName) object).save());
+                        //Chunk size n and total chunks to be sent
+                        int n = 1024;
+                        int mfSize = mfile.getMusicFileExtract().length;
+
+                        if (n >= mfSize) {
+                            mfile.isLast(true);
+                            mfile.save(((TrackName) object).save());
+                            out.writeObject(mfile);
+                        }
+
+                        for (int i = n;; i += n){
+
+                            byte[] tmpBytes = Arrays.copyOfRange(mfile.getMusicFileExtract(), i - n, Math.min(mfSize,i));
+                            MusicFile tmpFile = new MusicFile(mfile.getTrackName(),mfile.getArtistName(),mfile.getAlbumInfo(),mfile.getGenre(),tmpBytes);
+
+                            if (mfSize <= i)
+                                tmpFile.isLast(true);
+                            tmpFile.save(((TrackName) object).save());
+
+                            out.writeObject(tmpFile);
+
+                            if (i >= mfSize)
+                                break;
+                        }
+                    } else {
                         out.writeObject(mfile);
                     }
+                } else if (object instanceof ListOfArtists) {
+                    ListOfArtists artists = (ListOfArtists) object;
+                    artists.setArtists(findArtists());
 
-                    for (int i = n;; i += n){
+                    System.out.println(artists.getArtists().size());
+                    out.writeObject(artists);
+                } else if (object instanceof ListOfSongs) {
+                    ListOfSongs songs = (ListOfSongs) object;
+                    songs.setSongs(findSongsOfArtist(songs.getArtist()));
 
-                        byte[] tmpBytes = Arrays.copyOfRange(mfile.getMusicFileExtract(), i - n, Math.min(mfSize,i));
-                        MusicFile tmpFile = new MusicFile(mfile.getTrackName(),mfile.getArtistName(),mfile.getAlbumInfo(),mfile.getGenre(),tmpBytes);
-
-                        if (mfSize <= i)
-                            tmpFile.isLast(true);
-                        tmpFile.save(((TrackName) object).save());
-
-                        out.writeObject(tmpFile);
-
-                        if (i >= mfSize)
-                            break;
-                    }
-                } else {
-                    out.writeObject(mfile);
+                    System.out.println(songs.getSongs().size());
+                    out.writeObject(songs);
                 }
 
             } catch (Exception e) {
@@ -111,6 +132,98 @@ class Publisher extends Node {
             }
         };
         pullThread.start();
+    }
+
+    public MusicFile readMusicFile(String track, String artist)   throws IOException {
+        String artistName = null;
+        String albumInfo = null;
+        String genre = null;
+
+        Mp3File mp3file = null;
+        try {
+            mp3file = new Mp3File("dataset/" + track + ".mp3");
+        } catch (UnsupportedTagException e) {
+            e.printStackTrace();
+        } catch (InvalidDataException e) {
+            e.printStackTrace();
+        } catch (FileNotFoundException e) {
+            return new MusicFile(track,artistName, albumInfo,genre,null);
+        }
+
+        if (mp3file.hasId3v2Tag()) {
+            ID3v2 id3v2Tag = mp3file.getId3v2Tag();
+
+            artistName = id3v2Tag.getArtist();
+            albumInfo = id3v2Tag.getAlbum();
+            genre = id3v2Tag.getGenreDescription();
+        }
+        else if (mp3file.hasId3v1Tag()) {
+            ID3v1 id3v1Tag = mp3file.getId3v1Tag();
+
+            artistName = id3v1Tag.getArtist();
+            albumInfo = id3v1Tag.getAlbum();
+            genre = id3v1Tag.getGenreDescription();
+        }
+
+        /* artist is not the appropriate */
+        if (!artistName.equals(artist))
+            return new MusicFile(track,artistName, albumInfo,genre,null);
+
+        byte [] musicFileExtract = Files.readAllBytes(Paths.get("dataset/" + track + ".mp3"));
+
+        return new MusicFile(track,artistName, albumInfo,genre,musicFileExtract);
+    }
+
+    private List<String> findArtists() {
+        List<String> result = new LinkedList<>();
+
+        File[] mp3s = new File("dataset/").listFiles();
+        for (File mp3: mp3s) {
+            try {
+                Mp3File mp3file = new Mp3File("dataset/" + mp3.getName());
+
+                if (mp3file.hasId3v2Tag()) {
+                    ID3v2 id3v2Tag = mp3file.getId3v2Tag();
+
+                    if (!result.contains(id3v2Tag.getArtist()))
+                        result.add(id3v2Tag.getArtist());
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            } catch (UnsupportedTagException e) {
+                e.printStackTrace();
+            } catch (InvalidDataException e) {
+                e.printStackTrace();
+            }
+        }
+
+        return result;
+    }
+
+    private List<String> findSongsOfArtist(String artist) {
+        List<String> result = new LinkedList<>();
+
+        File[] mp3s = new File("dataset/").listFiles();
+        for (File mp3: mp3s) {
+            try {
+                Mp3File mp3file = new Mp3File("dataset/" + mp3.getName());
+
+                if (mp3file.hasId3v2Tag()) {
+                    ID3v2 id3v2Tag = mp3file.getId3v2Tag();
+
+                    if (!result.contains(id3v2Tag.getArtist()) && id3v2Tag.getArtist().equals(artist))
+                        result.add(mp3.getName());
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            } catch (UnsupportedTagException e) {
+                e.printStackTrace();
+            } catch (InvalidDataException e) {
+                e.printStackTrace();
+            }
+        }
+
+        return result;
     }
 
     public static void main(String[] args) {

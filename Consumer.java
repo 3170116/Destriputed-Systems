@@ -5,111 +5,13 @@ import java.net.UnknownHostException;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.Queue;
-import java.util.concurrent.TimeUnit;
 
 class Consumer extends Node {
 
-    private Thread pushThread;
-    private boolean logOut = false;
-
-    private Queue<Object> chunks;
-    private int totalBytes;//the sum of bytes which the MusicFile objects will have
-
-    private Socket requestSocket = null;
-    private ObjectOutputStream out = null;
-    private ObjectInputStream in = null;
-
-    private int maxBrokerHashKey = 0;
+    private int maxBrokerHashKey;
 
     public Consumer() {
-        chunks = new LinkedList<>();
-        totalBytes = 0;
-
-        try {
-            /*
-            the port 5432 is for the first (default) broker
-            so it will receives us the list of all brokers
-            */
-            requestSocket = new Socket("127.0.0.1", 5432);
-            out = new ObjectOutputStream(requestSocket.getOutputStream());
-            in = new ObjectInputStream(requestSocket.getInputStream());
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-        /*
-        we accept the music files from brokers
-         */
-        pushThread = new Thread() {
-            @Override
-            public void run() {
-                while (!logOut) {
-                    try {
-                        Object object = in.readObject();
-                        //the first time we get all the brokers
-                        if (object instanceof ListOfBrokers) {
-                            brokers = ((ListOfBrokers) object).getListOfBrokers();
-
-                            //calculate the broker with the max hashKey
-                            int key = 0;
-                            for (BrokerNode brokerNode: brokers)
-                                if (hashKey(brokerNode) > key)
-                                    key = hashKey(brokerNode);
-
-                            maxBrokerHashKey = key;
-
-                            //sort the brokers according to hashCode
-                            Collections.sort(brokers);
-                        } else {
-
-                            if (((MusicFile) object).getMusicFileExtract() == null) {
-                                System.out.println("File not found!");
-                                disconnect();
-                                logOut();
-                            } else {
-                                System.out.println(object);
-
-                                chunks.add(object);
-                                totalBytes += ((MusicFile) object).getMusicFileExtract().length;
-
-                                if (((MusicFile) object).isLast()) {
-                                    if (((MusicFile) object).save()) {
-                                        //merge all chunks into one file and save it to temporary folder
-                                        File tempFile = File.createTempFile(((MusicFile) object).getTrackName(), ".mp3", null);
-                                        FileOutputStream fos = new FileOutputStream(tempFile);
-
-                                        System.out.println("Saved to: " + tempFile.getAbsolutePath());
-
-                                        byte[] musicBytes = new byte[totalBytes];
-
-                                        int i = 0;
-                                        while (!chunks.isEmpty()) {
-                                            for (int j = 0; j < ((MusicFile) chunks.peek()).getMusicFileExtract().length; j++)
-                                                musicBytes[i++] = ((MusicFile) chunks.peek()).getMusicFileExtract()[j];
-                                            chunks.poll();
-                                        }
-
-                                        fos.write(musicBytes);
-                                        fos.close();
-                                    }
-                                    disconnect();
-                                    logOut();
-                                }
-                            }
-                        }
-                    } catch (UnknownHostException unknownHost) {
-                        System.err.println("You are trying to connect to an unknown host!");
-                    } catch (SocketException e) {
-
-                    } catch (IOException ioException) {
-                        ioException.printStackTrace();
-                    } catch (ClassNotFoundException e) {
-                        e.printStackTrace();
-                    }
-                }
-            }
-        };
-        pushThread.start();
+        maxBrokerHashKey = 0;
     }
 
     public int hashKey(BrokerNode broker) {
@@ -118,20 +20,152 @@ class Consumer extends Node {
 
     //finds the broker which can send the song of artist 'artistName'
     public void push(TrackName trackName) {
-        this.disconnect();
-        for (BrokerNode broker: brokers) {
-            if (trackName.hashCode()%maxBrokerHashKey <= hashKey(broker)) {
-                //makes a socket connection with the broker
-                try {
-                    requestSocket = new Socket(broker.getIpAddress(), broker.getPort());
-                    out = new ObjectOutputStream(requestSocket.getOutputStream());
-                    in = new ObjectInputStream(requestSocket.getInputStream());
+        new Thread() {
+            @Override
+            public void run() {
+                Queue<Object> chunks = new LinkedList<>();
+                int totalBytes = 0;//the sum of bytes which the MusicFile objects will have
 
-                    out.writeObject(trackName);
+                Socket requestSocket = null;
+                ObjectOutputStream out = null;
+                ObjectInputStream in = null;
+
+                for (BrokerNode broker: brokers) {
+                    if (trackName.hashCode()%maxBrokerHashKey <= hashKey(broker)) {
+                        //makes a socket connection with the broker
+                        try {
+                            requestSocket = new Socket(broker.getIpAddress(), broker.getPort());
+                            out = new ObjectOutputStream(requestSocket.getOutputStream());
+                            in = new ObjectInputStream(requestSocket.getInputStream());
+
+                            out.writeObject(trackName);
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                        break;
+                    }
+                }
+
+                while (true) {
+                    try {
+                        MusicFile object = (MusicFile) in.readObject();
+                        if (object.getMusicFileExtract() == null) {
+                            System.out.println("File not found!");
+                            break;
+                        } else {
+                            System.out.println(object);
+
+                            chunks.add(object);
+                            totalBytes +=  object.getMusicFileExtract().length;
+
+                            if (object.isLast()) {
+                                if (object.save()) {
+                                    //merge all chunks into one file and save it to temporary folder
+                                    File tempFile = File.createTempFile(((MusicFile) object).getTrackName(), ".mp3", null);
+                                    FileOutputStream fos = new FileOutputStream(tempFile);
+
+                                    System.out.println("Saved to: " + tempFile.getAbsolutePath());
+
+                                    byte[] musicBytes = new byte[totalBytes];
+
+                                    int i = 0;
+                                    while (!chunks.isEmpty()) {
+                                        for (int j = 0; j < ((MusicFile) chunks.peek()).getMusicFileExtract().length; j++)
+                                            musicBytes[i++] = ((MusicFile) chunks.peek()).getMusicFileExtract()[j];
+                                        chunks.poll();
+                                    }
+
+                                    fos.write(musicBytes);
+                                    fos.close();
+                                }
+                                break;
+                            }
+                        }
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    } catch (ClassNotFoundException e) {
+                        e.printStackTrace();
+                    }
+                }
+
+            }
+        }.start();
+    }
+
+    public void getArtists() {
+        ListOfArtists artists;
+
+        Socket socket = null;
+        ObjectOutputStream objectOutputStream = null;
+        ObjectInputStream objectInputStream = null;
+
+        try {
+            socket = new Socket("127.0.0.1", 5432);
+            objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
+            objectInputStream = new ObjectInputStream(socket.getInputStream());
+
+            objectOutputStream.writeObject(new ListOfArtists());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        try {
+            artists = (ListOfArtists) objectInputStream.readObject();
+
+            for (String artist: artists.getArtists())
+                System.out.println(artist);
+        } catch (IOException e) {
+            e.printStackTrace();
+        } catch (ClassNotFoundException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                socket.close();
+                objectInputStream.close();
+                objectOutputStream.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    public void getSongOfArtist(String artist) {
+        Socket socket = null;
+        ObjectOutputStream objectOutputStream = null;
+        ObjectInputStream objectInputStream = null;
+
+        for (BrokerNode broker: brokers) {
+            if (artist.hashCode()%maxBrokerHashKey <= hashKey(broker)) {
+                try {
+                    socket = new Socket(broker.getIpAddress(), broker.getPort());
+                    objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
+                    objectInputStream = new ObjectInputStream(socket.getInputStream());
+
+                    objectOutputStream.writeObject(new ListOfSongs(artist));
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
+
                 break;
+            }
+        }
+
+        try {
+            ListOfSongs songs = (ListOfSongs) objectInputStream.readObject();
+
+            for (String song: songs.getSongs())
+                System.out.println(song);
+        } catch (IOException e) {
+            e.printStackTrace();
+        } catch (ClassNotFoundException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                socket.close();
+                objectInputStream.close();
+                objectOutputStream.close();
+            } catch (IOException e) {
+                e.printStackTrace();
             }
         }
     }
@@ -141,56 +175,59 @@ class Consumer extends Node {
         if (!brokers.isEmpty())
             return;
 
+        Socket requestSocket = null;
+        ObjectOutputStream out = null;
+        ObjectInputStream in = null;
+
         try {
+            requestSocket = new Socket("127.0.0.1", 5432);
+            out = new ObjectOutputStream(requestSocket.getOutputStream());
+            in = new ObjectInputStream(requestSocket.getInputStream());
+
             out.writeObject(new ListOfBrokers());
         } catch (IOException e) {
             e.printStackTrace();
         }
-    }
 
-    public boolean disconnect() {
-        if (in !=  null) {
+        try {
+            brokers = ((ListOfBrokers) in.readObject()).getListOfBrokers();
+
+            //calculate the broker with the max hashKey
+            int key = 0;
+            for (BrokerNode brokerNode : brokers)
+                if (hashKey(brokerNode) > key)
+                    key = hashKey(brokerNode);
+
+            maxBrokerHashKey = key;
+
+            //sort the brokers according to hashCode
+            Collections.sort(brokers);
+        } catch (IOException e) {
+            e.printStackTrace();
+        } catch (ClassNotFoundException e) {
+            e.printStackTrace();
+        } finally {
             try {
+                requestSocket.close();
                 in.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-                return false;
-            }
-        }
-
-        if (out != null) {
-            try {
                 out.close();
             } catch (IOException e) {
                 e.printStackTrace();
-                return false;
             }
         }
-
-        try {
-            requestSocket.close();
-        } catch (IOException ioException) {
-            ioException.printStackTrace();
-            return false;
-        }
-
-        return true;
     }
-
-    public void logOut() {this.logOut = true;}
 
     public static void main(String[] args) {
         Consumer consumer = new Consumer();
 
         consumer.register();
-        try {
-            TimeUnit.SECONDS.sleep(2);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
+
+        consumer.getArtists();
+
+        consumer.getSongOfArtist("Alexander Nakarada");
 
         TrackName trackName = new TrackName("Hor Hor","Alexander Nakarada");
-        trackName.save(true);
+        trackName.save(false);
         consumer.push(trackName);
     }
 
