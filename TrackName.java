@@ -7,9 +7,13 @@ class TrackName implements Serializable {
     private boolean save;
 
     public TrackName(String trackName, String artistName) {
+        this(trackName,artistName,false);
+    }
+
+    public TrackName(String trackName, String artistName, boolean save) {
         this.trackName = trackName;
         this.artistName = artistName;
-        this.save = false;
+        this.save = save;
     }
 
     public String getTrackName() { return trackName; }

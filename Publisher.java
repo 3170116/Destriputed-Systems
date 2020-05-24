@@ -41,7 +41,7 @@ class Publisher extends Node {
                         System.out.println(mfile);
 
                         //Chunk size n and total chunks to be sent
-                        int n = 1024;
+                        int n = 5*1024;
                         int mfSize = mfile.getMusicFileExtract().length;
 
                         if (n >= mfSize) {
@@ -83,14 +83,14 @@ class Publisher extends Node {
 
             } catch (Exception e) {
                 e.printStackTrace();
-            } finally {
+            } /*finally {
                 try {
                     in.close();
                     out.close();
                 } catch (IOException ioException) {
                     ioException.printStackTrace();
                 }
-            }
+            }*/
         }
     }
 
@@ -141,7 +141,7 @@ class Publisher extends Node {
 
         Mp3File mp3file = null;
         try {
-            mp3file = new Mp3File("dataset/" + track + ".mp3");
+            mp3file = new Mp3File("dataset/" + track);
         } catch (UnsupportedTagException e) {
             e.printStackTrace();
         } catch (InvalidDataException e) {
@@ -169,7 +169,7 @@ class Publisher extends Node {
         if (!artistName.equals(artist))
             return new MusicFile(track,artistName, albumInfo,genre,null);
 
-        byte [] musicFileExtract = Files.readAllBytes(Paths.get("dataset/" + track + ".mp3"));
+        byte [] musicFileExtract = Files.readAllBytes(Paths.get("dataset/" + track));
 
         return new MusicFile(track,artistName, albumInfo,genre,musicFileExtract);
     }

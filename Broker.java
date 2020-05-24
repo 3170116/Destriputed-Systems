@@ -1,3 +1,5 @@
+import org.json.JSONObject;
+
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -6,18 +8,7 @@ import java.net.UnknownHostException;
 import java.util.*;
 
 class Broker extends Node {
-
-    /*
-    this class handles the requests that the broker receives
-
-    if the input object is instance of 'ListOfBrokers' sends back to consumer
-    the list of all brokers
-
-    if the input object is instance of 'ArtistName' makes a socket to the appropriate
-    publisher to send it the object
-
-    if the input object is instance of 'MusicFile' it sends it back to the appropriate consumer
-     */
+    
     private class ConnectionHandler extends Thread {
 
         private ObjectInputStream in;
@@ -35,11 +26,116 @@ class Broker extends Node {
         public void run() {
             try {
                 Object object = in.readObject();
+                JSONObject jsonObject = new JSONObject((String) object);
+                JSONObject result = new JSONObject();
 
-                if (object instanceof ListOfBrokers) {
-                    ((ListOfBrokers) object).setListOfBrokers(brokers);
-                    out.writeObject(object);
-                } else if (object instanceof TrackName) {
+                System.out.println(jsonObject.toString());
+
+                if (jsonObject.get("TYPE").equals("LISTOFBROKERS")) {
+                    String listOfBrokers = "";
+                    for (int i = 0; i < brokers.size(); i++) {
+                        if (i == brokers.size() -1)
+                            listOfBrokers += brokers.get(i).getIpAddress() + "," + brokers.get(i).getPort();
+                        else
+                            listOfBrokers += brokers.get(i).getIpAddress() + "," + brokers.get(i).getPort() + "/";
+                    }
+
+                    result.put("LISTOFBROKERS",listOfBrokers);
+
+                    out.writeObject(result.toString());
+                } else if (jsonObject.get("TYPE").equals("LISTOFARTISTS")) {
+                    Socket publisherSocket = new Socket("127.0.0.1", 4321);
+                    ObjectOutputStream publisherOut = new ObjectOutputStream(publisherSocket.getOutputStream());
+                    ObjectInputStream publisherIn = new ObjectInputStream(publisherSocket.getInputStream());
+
+                    publisherOut.writeObject(new ListOfArtists());
+
+                    try {
+                        ListOfArtists artists = (ListOfArtists) publisherIn.readObject();
+
+                        String listOfArtists = "";
+                        for (int i = 0; i < artists.getArtists().size(); i++) {
+                            if (i == artists.getArtists().size() -1)
+                                listOfArtists += artists.getArtists().get(i);
+                            else
+                                listOfArtists += artists.getArtists().get(i) + ",";
+                        }
+
+                        result.put("LISTOFARTISTS",listOfArtists);
+                        out.writeObject(result.toString());
+
+                    } catch (UnknownHostException unknownHost) {
+                        System.err.println("You are trying to connect to an unknown host!");
+                    } catch (EOFException e) {
+
+                    } catch (IOException ioException) {
+                        ioException.printStackTrace();
+                    } catch (ClassNotFoundException e) {
+                        e.printStackTrace();
+                    }
+
+                    try {
+                        publisherIn.close();
+                        publisherOut.close();
+                        publisherSocket.close();
+                    } catch (IOException ioException) {
+                        ioException.printStackTrace();
+                    }
+                } else if(jsonObject.get("TYPE").equals("LISTOFSONGS")) {
+                    Socket publisherSocket = null;
+                    ObjectOutputStream publisherOut = null;
+                    ObjectInputStream publisherIn = null;
+
+                    //find the appropriate publisher
+                    String artist = jsonObject.get("ARTIST").toString();
+                    for (PublisherNode publisherNode: publishersList) {
+                        if (publisherNode.handlesArtist(artist.substring(0,1))) {
+                            //makes a socket connection with the broker
+                            try {
+                                publisherSocket = new Socket(publisherNode.getIpAddress(), publisherNode.getPort());
+                                publisherOut = new ObjectOutputStream(publisherSocket.getOutputStream());
+                                publisherIn = new ObjectInputStream(publisherSocket.getInputStream());
+
+                                publisherOut.writeObject(new ListOfSongs(artist));
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                            }
+                            break;
+                        }
+                    }
+
+                    try {
+                        ListOfSongs songs = (ListOfSongs) publisherIn.readObject();
+
+                        String listOfSongs = "";
+                        for (int i = 0; i < songs.getSongs().size(); i++) {
+                            if (i == songs.getSongs().size() -1)
+                                listOfSongs += songs.getSongs().get(i);
+                            else
+                                listOfSongs += songs.getSongs().get(i) + ",";
+                        }
+
+                        result.put("LISTOFSONGS",listOfSongs);
+                        out.writeObject(result.toString());
+
+                    } catch (UnknownHostException unknownHost) {
+                        System.err.println("You are trying to connect to an unknown host!");
+                    } catch (EOFException e) {
+
+                    } catch (IOException ioException) {
+                        ioException.printStackTrace();
+                    } catch (ClassNotFoundException e) {
+                        e.printStackTrace();
+                    }
+
+                    try {
+                        publisherIn.close();
+                        publisherOut.close();
+                        publisherSocket.close();
+                    } catch (IOException ioException) {
+                        ioException.printStackTrace();
+                    }
+                } else if(jsonObject.get("TYPE").equals("TRACKNAME")) {
                     new Thread() {
                         @Override
                         public void run() {
@@ -48,15 +144,16 @@ class Broker extends Node {
                             ObjectInputStream publisherIn = null;
 
                             //find the appropriate publisher
+                            String artist = jsonObject.get("ARTIST").toString();
                             for (PublisherNode publisherNode: publishersList) {
-                                if (publisherNode.handlesArtist(((TrackName) object).getTrackName().substring(0,1))) {
+                                if (publisherNode.handlesArtist(artist.substring(0,1))) {
                                     //makes a socket connection with the broker
                                     try {
                                         publisherSocket = new Socket(publisherNode.getIpAddress(), publisherNode.getPort());
                                         publisherOut = new ObjectOutputStream(publisherSocket.getOutputStream());
                                         publisherIn = new ObjectInputStream(publisherSocket.getInputStream());
 
-                                        publisherOut.writeObject(object);
+                                        publisherOut.writeObject(new TrackName(jsonObject.get("TRACK").toString(),jsonObject.get("ARTIST").toString(),(boolean) jsonObject.get("SAVE")));
                                     } catch (IOException e) {
                                         e.printStackTrace();
                                     }
@@ -67,16 +164,30 @@ class Broker extends Node {
                             while (true) {
                                 try {
                                     MusicFile musicFile = (MusicFile) publisherIn.readObject();
-                                    out.writeObject(musicFile);
+                                    JSONObject result = new JSONObject();
+
+                                    String bytes = "";
+                                    for (int i = 0; i < musicFile.getMusicFileExtract().length; i++) {
+                                        if (i == musicFile.getMusicFileExtract().length -1)
+                                            bytes += musicFile.getMusicFileExtract()[i];
+                                        else
+                                            bytes += musicFile.getMusicFileExtract()[i] + ",";
+                                    }
+
+                                    result.put("ARTIST",musicFile.getArtistName());
+                                    result.put("TRACKNAME",musicFile.getTrackName());
+                                    result.put("ALBUM",musicFile.getAlbumInfo() != null? musicFile.getAlbumInfo(): "");
+                                    result.put("GENRE",musicFile.getGenre() != null? musicFile.getGenre(): "");
+                                    result.put("BYTES",bytes);
+                                    result.put("SAVE",musicFile.save());
+                                    result.put("LAST",musicFile.isLast());
+                                    out.writeObject(result.toString());
 
                                     if (musicFile.isLast())
                                         break;
-                                } catch (UnknownHostException unknownHost) {
-                                    System.err.println("You are trying to connect to an unknown host!");
-                                } catch (EOFException e) {
-
                                 } catch (IOException ioException) {
                                     ioException.printStackTrace();
+                                    break;
                                 } catch (ClassNotFoundException e) {
                                     e.printStackTrace();
                                 }
@@ -91,84 +202,8 @@ class Broker extends Node {
                             }
                         }
                     }.start();
-                } else if (object instanceof ListOfArtists) {
-                    Socket publisherSocket = new Socket("127.0.0.1", 4321);
-                    ObjectOutputStream publisherOut = new ObjectOutputStream(publisherSocket.getOutputStream());
-                    ObjectInputStream publisherIn = new ObjectInputStream(publisherSocket.getInputStream());
-
-                    publisherOut.writeObject(object);
-
-                    while (true) {
-                        try {
-                            ListOfArtists artists = (ListOfArtists) publisherIn.readObject();
-                            out.writeObject(artists);
-
-                            break;
-                        } catch (UnknownHostException unknownHost) {
-                            System.err.println("You are trying to connect to an unknown host!");
-                        } catch (EOFException e) {
-
-                        } catch (IOException ioException) {
-                            ioException.printStackTrace();
-                        } catch (ClassNotFoundException e) {
-                            e.printStackTrace();
-                        }
-                    }
-
-                    try {
-                        publisherIn.close();
-                        publisherOut.close();
-                        publisherSocket.close();
-                    } catch (IOException ioException) {
-                        ioException.printStackTrace();
-                    }
-                } else if (object instanceof ListOfSongs) {
-                    Socket publisherSocket = null;
-                    ObjectOutputStream publisherOut = null;
-                    ObjectInputStream publisherIn = null;
-
-                    //find the appropriate publisher
-                    for (PublisherNode publisherNode: publishersList) {
-                        if (publisherNode.handlesArtist(((ListOfSongs) object).getArtist().substring(0,1))) {
-                            //makes a socket connection with the broker
-                            try {
-                                publisherSocket = new Socket(publisherNode.getIpAddress(), publisherNode.getPort());
-                                publisherOut = new ObjectOutputStream(publisherSocket.getOutputStream());
-                                publisherIn = new ObjectInputStream(publisherSocket.getInputStream());
-
-                                publisherOut.writeObject(object);
-                            } catch (IOException e) {
-                                e.printStackTrace();
-                            }
-                            break;
-                        }
-                    }
-
-                    while (true) {
-                        try {
-                            ListOfSongs songs = (ListOfSongs) publisherIn.readObject();
-                            out.writeObject(songs);
-
-                            break;
-                        } catch (UnknownHostException unknownHost) {
-                            System.err.println("You are trying to connect to an unknown host!");
-                        } catch (EOFException e) {
-
-                        } catch (IOException ioException) {
-                            ioException.printStackTrace();
-                        } catch (ClassNotFoundException e) {
-                            e.printStackTrace();
-                        }
-                    }
-
-                    try {
-                        publisherIn.close();
-                        publisherOut.close();
-                        publisherSocket.close();
-                    } catch (IOException ioException) {
-                        ioException.printStackTrace();
-                    }
                 }
+
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -228,7 +263,7 @@ class Broker extends Node {
 
         List<BrokerNode> brokerNodes = new LinkedList<>();
 
-        BrokerNode brokerNode1 = new BrokerNode("127.0.0.1",5432);
+        BrokerNode brokerNode1 = new BrokerNode("192.168.1.3",5432);
         //BrokerNode brokerNode2 = new BrokerNode("127.0.0.1",5433);
 
         brokerNodes.add(brokerNode1);
